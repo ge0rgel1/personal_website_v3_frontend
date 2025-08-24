@@ -80,12 +80,12 @@ export const markdownComponents = {
     </em>
   ),
   img: ({ src, alt, ...props }: ComponentPropsWithoutRef<'img'>) => {
-    // Return just the img element with display block to avoid paragraph nesting issues
+    // Return just the img element with smart responsive sizing
     return (
       <img 
         src={src} 
         alt={alt} 
-        className="w-full rounded-lg shadow-md my-6 block" 
+        className="max-w-full max-h-[600px] w-auto h-auto rounded-lg shadow-md my-6 block mx-auto object-contain" 
         {...props} 
       />
     )

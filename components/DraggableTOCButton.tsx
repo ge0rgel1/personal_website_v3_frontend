@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 
 interface DraggableTOCButtonProps {
   onClick: () => void
@@ -8,7 +8,7 @@ interface DraggableTOCButtonProps {
 }
 
 export default function DraggableTOCButton({ onClick, isOpen }: DraggableTOCButtonProps) {
-  const [position, setPosition] = useState({ x: 50, y: 200 })
+  const [position, setPosition] = useState({ x: 50, y: 80 })
   const buttonRef = useRef<HTMLButtonElement>(null)
   const dragStateRef = useRef({
     isDragging: false,
@@ -17,6 +17,11 @@ export default function DraggableTOCButton({ onClick, isOpen }: DraggableTOCButt
     initialMouseX: 0,
     initialMouseY: 0
   })
+
+  // Set initial position to top right on client side
+  useEffect(() => {
+    setPosition({ x: window.innerWidth - 120, y: 80 })
+  }, [])
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     const drag = dragStateRef.current
