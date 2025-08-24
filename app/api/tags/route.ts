@@ -11,16 +11,19 @@ export async function GET() {
     const client = await pool.connect();
     
     try {
-      // Get all tags with their post counts (only for published posts)
+      // Step 1: Get all post IDs that have status 'published'
+      // Step 2: Use those post_ids to get tag_ids from post_tags table
+      // Step 3: Use tag_ids to get tag names from tags table
+      // This ensures we only return tags that are actually used by published posts
       const tagsQuery = `
         SELECT 
           t.name,
-          COUNT(pt.post_id) as count
-        FROM tags t
-        LEFT JOIN post_tags pt ON t.id = pt.tag_id
-        LEFT JOIN posts p ON pt.post_id = p.id AND p.status = 'published'
+          COUNT(DISTINCT p.id) as count
+        FROM posts p
+        INNER JOIN post_tags pt ON p.id = pt.post_id
+        INNER JOIN tags t ON pt.tag_id = t.id
+        WHERE p.status = 'published'
         GROUP BY t.id, t.name
-        HAVING COUNT(pt.post_id) > 0
         ORDER BY count DESC, t.name ASC
       `;
       
