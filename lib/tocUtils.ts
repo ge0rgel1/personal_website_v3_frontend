@@ -27,17 +27,35 @@ export function extractTOC(markdownContent: string): TOCItem[] {
   const tree = processor.parse(markdownContent)
   
   visit(tree, 'heading', (node) => {
-    // Extract text content from heading
+    // Extract text content from heading, being careful about math content
     let text = ''
-    visit(node, 'text', (textNode) => {
-      text += textNode.value
+    visit(node, (childNode: any) => {
+      // Only collect text from actual text nodes
+      if (childNode.type === 'text') {
+        text += childNode.value
+      }
+      // Skip known math node types (if they exist)
+      if (childNode.type === 'inlineMath' || 
+          childNode.type === 'math' || 
+          childNode.type === 'mathBlock') {
+        return 'skip'
+      }
     })
     
-    if (text.trim()) {
-      const id = generateHeadingId(text)
+    // Clean up the text and validate it's a real heading
+    const cleanText = text.trim()
+    
+    // Skip if:
+    // 1. No text content
+    // 2. Contains LaTeX patterns (as fallback)
+    // 3. Is too long (likely not a heading)
+    if (cleanText && 
+        !isLaTeXContent(cleanText) && 
+        cleanText.length < 200) {
+      const id = generateHeadingId(cleanText)
       headings.push({
         level: node.depth,
-        text: text.trim(),
+        text: cleanText,
         id
       })
     }
@@ -45,6 +63,29 @@ export function extractTOC(markdownContent: string): TOCItem[] {
   
   // Build hierarchical structure
   return buildTOCTree(headings)
+}
+
+// Helper function to detect LaTeX content
+function isLaTeXContent(text: string): boolean {
+  // Common LaTeX patterns that shouldn't be headings
+  const latexPatterns = [
+    /\\begin\{.*\}/,           // \begin{...}
+    /\\end\{.*\}/,             // \end{...}
+    /\$\$.*\$\$/,              // $$...$$
+    /\\\w+\{.*\}/,             // \command{...}
+    /\\[a-zA-Z]+/,             // \command
+    /[_{}\^\\]/,               // Common LaTeX symbols
+    /\bpmatrix\b/,             // matrix environments
+    /\bmatrix\b/,
+    /\bbmatrix\b/,
+    /\bvmatrix\b/,
+    /\bVmatrix\b/,
+    /\balign\b/,               // align environments
+    /\bequation\b/,
+    /\bgather\b/
+  ]
+  
+  return latexPatterns.some(pattern => pattern.test(text))
 }
 
 // Build a hierarchical tree structure from flat headings array
