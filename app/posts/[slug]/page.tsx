@@ -12,8 +12,12 @@ import rehypeRaw from 'rehype-raw'
 import 'katex/dist/katex.min.css'
 import 'highlight.js/styles/github.css'
 import Footer from '../../../components/Footer'
+import DraggableTOCButton from '../../../components/DraggableTOCButton'
+import TOCPanel from '../../../components/TOCPanel'
 import { markdownComponents } from '../../../lib/markdownComponents'
 import { preprocessMathContent } from '../../../lib/markdownUtils'
+import { extractTOC, TOCItem } from '../../../lib/tocUtils'
+import { rehypeAddHeadingIds } from '../../../lib/rehypeAddHeadingIds'
 
 interface PostData {
   id: number
@@ -38,6 +42,9 @@ export default function PostDetail() {
   const [post, setPost] = useState<PostData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [tocOpen, setTocOpen] = useState(false)
+  const [tocItems, setTocItems] = useState<TOCItem[]>([])
+  const [activeHeading, setActiveHeading] = useState<string>('')
 
   useEffect(() => {
     if (slug) {
@@ -52,6 +59,11 @@ export default function PostDetail() {
           const data = await response.json()
           if (data.success) {
             setPost(data.data)
+            // Extract TOC from markdown content
+            if (data.data.content_md) {
+              const toc = extractTOC(data.data.content_md)
+              setTocItems(toc)
+            }
           } else {
             throw new Error(data.error || 'Post not found')
           }
@@ -73,6 +85,44 @@ export default function PostDetail() {
       day: 'numeric'
     })
   }
+
+  const handleTocToggle = () => {
+    setTocOpen(!tocOpen)
+  }
+
+  // Track active heading with Intersection Observer
+  useEffect(() => {
+    if (!post?.content_md || tocItems.length === 0) return
+
+    const headingElements = tocItems.flatMap(function collectHeadings(item): string[] {
+      return [item.id, ...item.children.flatMap(collectHeadings)]
+    }).map(id => document.getElementById(id)).filter(Boolean) as HTMLElement[]
+
+    if (headingElements.length === 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Find the heading that's currently most visible
+        const visibleHeadings = entries
+          .filter(entry => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)
+
+        if (visibleHeadings.length > 0) {
+          setActiveHeading(visibleHeadings[0].target.id)
+        }
+      },
+      {
+        rootMargin: '-100px 0px -50% 0px', // Trigger when heading is near the top
+        threshold: [0, 0.25, 0.5, 0.75, 1]
+      }
+    )
+
+    headingElements.forEach(element => observer.observe(element))
+
+    return () => {
+      headingElements.forEach(element => observer.unobserve(element))
+    }
+  }, [post?.content_md, tocItems])
 
   if (loading) {
     return (
@@ -112,6 +162,17 @@ export default function PostDetail() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Draggable Table of Contents Button */}
+      <DraggableTOCButton onClick={handleTocToggle} isOpen={tocOpen} />
+      
+      {/* Table of Contents Panel */}
+      <TOCPanel 
+        isOpen={tocOpen} 
+        tocItems={tocItems}
+        activeHeading={activeHeading}
+        onClose={() => setTocOpen(false)}
+      />
+      
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <div className="mb-6">
@@ -161,6 +222,7 @@ export default function PostDetail() {
                     ]}
                     rehypePlugins={[
                       rehypeRaw,
+                      rehypeAddHeadingIds, // Add IDs to headings for TOC navigation
                       rehypeHighlight,
                       [rehypeKatex, { 
                         output: 'html',
